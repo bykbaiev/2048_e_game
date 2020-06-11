@@ -31,10 +31,10 @@ type alias Cell = Maybe Int
 type alias Model =
     { keyCode: Maybe Int
     , score: Int
-    , board: List Cell
+    , board: List ( List Cell )
     }
 
-getInitialBoardState : List Cell
+getInitialBoardState : List ( List Cell )
 getInitialBoardState =
     [ [Nothing, Nothing, Nothing, Nothing]
     , [Nothing, Nothing, Nothing, Nothing]
@@ -77,14 +77,16 @@ update msg model =
 
 --VIEW
 
+-- button [ onClick Reset ] [ text "-" ]
+-- , div [] [ text (String.fromInt model.score) ]
+-- , div [] [ text (getKeyCode model.keyCode) ]
+-- , button [ onClick Reset ] [ text "+" ]
+
 view : Model -> Html Msg
 view model =
-    div [ onKeyDown KeyDown ]
-        [ button [ onClick Reset ] [ text "-" ]
-          , div [] [ text (String.fromInt model.score) ]
-          , div [] [ text getKeyCode model.keyCode ]
-          , button [ onClick Reset ] [ text "+" ]
-        ]
+    div
+        [ onClick <| KeyDown "asdf" ]
+        [ text "Hello world" ]
 
 -- keyDecoder : Decode.Decoder Direction
 -- keyDecoder = Decode.map toDirection (Decode.field "key" Decode.string)
