@@ -4,7 +4,7 @@ import Browser
 import Html exposing (Html, div, button, text)
 import Html.Events exposing (onClick)
 import Browser.Events exposing (onKeyDown)
-import Json.Decode as D
+import Json.Decode as Decode
 
 type Direction
     = Left
@@ -12,6 +12,28 @@ type Direction
     | Up
     | Down
     | Other
+
+keyDecoder : Decode.Decoder Msg
+keyDecoder =
+  Decode.map toDirection (Decode.field "key" Decode.string)
+
+toDirection : String -> Msg
+toDirection string =
+  case string of
+    "ArrowLeft" ->
+        KeyDown Left
+
+    "ArrowRight" ->
+        KeyDown Right
+
+    "ArrowUp" ->
+        KeyDown Up
+
+    "ArrowDown" ->
+        KeyDown Down
+
+    _ ->
+        KeyDown Other
 
 -- MAIN
 
@@ -21,7 +43,7 @@ main =
         { init = init
         , view = view
         , update = update
-        , subscriptions = \_ -> Sub.none
+        , subscriptions = subscriptions
         }
 
 -- MODEL
@@ -29,7 +51,7 @@ main =
 type alias Cell = Maybe Int
 
 type alias Model =
-    { keyCode: Maybe Int
+    { direction: String
     , score: Int
     , board: List ( List Cell )
     }
@@ -42,19 +64,10 @@ getInitialBoardState =
     , [Nothing, Nothing, Nothing, Nothing]
     ]
 
-getKeyCode : Maybe Int -> String
-getKeyCode keyCode =
-    case keyCode of
-        Just value ->
-            String.fromInt value
-
-        Nothing ->
-            ""
-
 init : () -> ( Model, Cmd Msg )
 init () =
     (
-        { keyCode = Nothing
+        { direction = ""
         , score = 0
         , board = getInitialBoardState
         }
@@ -64,46 +77,45 @@ init () =
 -- UPDATE
 
 type Msg =
-    KeyDown String
+    KeyDown Direction
     | Reset
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        KeyDown keyCode ->
-            ( { model | keyCode = String.toInt keyCode }, Cmd.none )
+        KeyDown direction ->
+            case direction of
+                Up ->
+                    ( { model | direction = "Up" }, Cmd.none )
+
+                Right ->
+                    ( { model | direction = "Right" }, Cmd.none )
+
+                Down ->
+                    ( { model | direction = "Down" }, Cmd.none )
+
+                Left ->
+                    ( { model | direction = "Left" }, Cmd.none )
+
+                Other ->
+                    ( model, Cmd.none )
         Reset ->
             ( { model | score = 0 }, Cmd.none )
 
---VIEW
+--SUBSCRIPTIONS
 
--- button [ onClick Reset ] [ text "-" ]
--- , div [] [ text (String.fromInt model.score) ]
--- , div [] [ text (getKeyCode model.keyCode) ]
--- , button [ onClick Reset ] [ text "+" ]
+subscriptions : Model -> Sub Msg
+subscriptions _ =
+    onKeyDown keyDecoder
+
+--VIEW
 
 view : Model -> Html Msg
 view model =
     div
-        [ onClick <| KeyDown "asdf" ]
-        [ text "Hello world" ]
-
--- keyDecoder : Decode.Decoder Direction
--- keyDecoder = Decode.map toDirection (Decode.field "key" Decode.string)
-
--- toDirection : String -> Direction
--- toDirection key =
---     case key of
---         "ArrowLeft" ->
---             Left
-
---         "ArrowRight" ->
---             Right
-
---         "ArrowUp" ->
---             Up
-
---         "ArrowDown" ->
---             Down
-
---         _ -> Other
+        []
+        [button [ onClick Reset ] [ text "-" ]
+        , div [] [ text model.direction ]
+        , div [] [ text (String.fromInt model.score) ]
+        , button [ onClick Reset ] [ text "+" ]
+        ]
