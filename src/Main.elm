@@ -1,8 +1,10 @@
 module Main exposing (main)
 
 import Browser
-import Html exposing (Html, div, button, text)
-import Html.Events exposing (onClick)
+import Html.Styled exposing (..)
+import Html.Styled.Attributes exposing (css)
+import Html.Styled.Events exposing (onClick)
+import Css exposing (..)
 import Browser.Events exposing (onKeyDown)
 import Json.Decode as Decode
 
@@ -41,35 +43,46 @@ main : Program () Model Msg
 main =
     Browser.element
         { init = init
-        , view = view
+        , view = view >> toUnstyled
         , update = update
         , subscriptions = subscriptions
         }
 
 -- MODEL
 
-type alias Cell = Maybe Int
-
-type alias Model =
-    { direction: String
+type alias Cell =
+    { value: Int
+    , position:
+        { x: Int
+        , y: Int
+        }
+    }
+type alias GameState =
+    { grid:
+        { size: Int
+        , cells: List ( List ( Maybe Cell ) )
+        }
     , score: Int
-    , board: List ( List Cell )
+    , won: Bool
     }
 
-getInitialBoardState : List ( List Cell )
-getInitialBoardState =
-    [ [Nothing, Nothing, Nothing, Nothing]
-    , [Nothing, Nothing, Nothing, Nothing]
-    , [Nothing, Nothing, Nothing, Nothing]
-    , [Nothing, Nothing, Nothing, Nothing]
-    ]
+type alias Model =
+    { bestScore: Int
+    , gameState: GameState
+    }
 
 init : () -> ( Model, Cmd Msg )
 init () =
     (
-        { direction = ""
-        , score = 0
-        , board = getInitialBoardState
+        { gameState =
+            { grid =
+                { size = 4 -- can be configurable one day
+                , cells = []
+                }
+            , score = 0
+            , won = False
+            }
+        , bestScore = 0
         }
         , Cmd.none
     )
@@ -86,21 +99,21 @@ update msg model =
         KeyDown direction ->
             case direction of
                 Up ->
-                    ( { model | direction = "Up" }, Cmd.none )
+                    ( model, Cmd.none )
 
                 Right ->
-                    ( { model | direction = "Right" }, Cmd.none )
+                    ( model, Cmd.none )
 
                 Down ->
-                    ( { model | direction = "Down" }, Cmd.none )
+                    ( model, Cmd.none )
 
                 Left ->
-                    ( { model | direction = "Left" }, Cmd.none )
+                    ( model, Cmd.none )
 
                 Other ->
                     ( model, Cmd.none )
         Reset ->
-            ( { model | score = 0 }, Cmd.none )
+            ( model, Cmd.none )
 
 --SUBSCRIPTIONS
 
@@ -114,8 +127,61 @@ view : Model -> Html Msg
 view model =
     div
         []
-        [button [ onClick Reset ] [ text "-" ]
-        , div [] [ text model.direction ]
-        , div [] [ text (String.fromInt model.score) ]
-        , button [ onClick Reset ] [ text "+" ]
+        [ viewHeader model.gameState.score model.bestScore
+        , viewGameContainer model
         ]
+
+viewHeader : Int -> Int -> Html Msg
+viewHeader score bestScore =
+    div []
+        [ text "2048"
+        , text <| String.fromInt score
+        , text <| String.fromInt bestScore
+        ]
+
+viewGameContainer : Model -> Html Msg
+viewGameContainer model =
+    div
+        [ css
+            [ position relative
+            , padding <| px 15
+            , margin auto
+            , marginTop <| px 40
+            , backgroundColor <| hex "#BBADA0"
+            , borderRadius <| px 6
+            , width <| px 500
+            , height <| px 500
+            , boxSizing borderBox
+            ]
+        ]
+        [ viewGrid model.gameState.grid.size
+        ]
+
+viewGrid : Int -> Html Msg
+viewGrid size =
+    div [] <|
+        List.map ( viewGridRow size ) ( List.range 1 size )
+
+viewGridRow : Int -> Int -> Html Msg
+viewGridRow size _ =
+    div
+        [ css
+            [ displayFlex
+            , justifyContent spaceBetween
+            , marginBottom <| px 15
+            ]
+        ]
+        <|
+            List.map viewGridCell ( List.range 1 size )
+
+viewGridCell : Int -> Html Msg
+viewGridCell _ =
+    div
+        [ css
+            [ width <| px 106.25
+            , height <| px 106.25
+            , borderRadius <| px 3
+            , backgroundColor <| rgba 238 228 218 0.35
+            ]
+        ] []
+
