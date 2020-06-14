@@ -3,10 +3,14 @@ module Main exposing (main)
 import Browser
 import Html.Styled exposing (..)
 import Html.Styled.Attributes exposing (css)
-import Html.Styled.Events exposing (onClick)
+-- import Html.Styled.Events exposing (onClick)
 import Css exposing (..)
+import Css.Transitions
 import Browser.Events exposing (onKeyDown)
 import Json.Decode as Decode
+import Random
+
+cellSize = 107
 
 type Direction
     = Left
@@ -51,40 +55,41 @@ main =
 -- MODEL
 
 type alias Cell =
-    { value: Int
-    , position:
-        { x: Int
-        , y: Int
+    Maybe
+        { x : Int
+        , y : Int
+        , value: Int
         }
-    }
-type alias GameState =
-    { grid:
-        { size: Int
-        , cells: List ( List ( Maybe Cell ) )
-        }
-    , score: Int
-    , won: Bool
-    }
+
+type alias GameGrid = List ( List ( Cell ) )
 
 type alias Model =
     { bestScore: Int
-    , gameState: GameState
+    , size: Int
+    , grid: GameGrid
+    , score : Int
+    , won : Bool
     }
+
+emptyGrid : Int -> GameGrid
+emptyGrid size =
+    List.repeat size <| List.repeat size Nothing
 
 init : () -> ( Model, Cmd Msg )
 init () =
     (
-        { gameState =
-            { grid =
-                { size = 4 -- can be configurable one day
-                , cells = []
-                }
-            , score = 0
-            , won = False
-            }
+        { grid = emptyGrid 4
+        , score = 0
+        , won = False
         , bestScore = 0
+        , size = 4 -- can be configurable one day
         }
         , Cmd.none
+        -- Random.list ( 2 * 3 ) ( Random.int 0 3 )
+        --     -- |> valueToCell
+        --     |> Random.generate InitialState
+
+        -- Random.generate InitialState ( Random.int 0 4 ) --, ( Random.int 0 4 ), ( Random.int 1 2 ) )
     )
 
 -- UPDATE
@@ -92,6 +97,7 @@ init () =
 type Msg =
     KeyDown Direction
     | Reset
+    -- | InitialState List Int -- Cell Cell -- ( Int, Int, Int ) -- (Int Int Int)
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
@@ -115,6 +121,9 @@ update msg model =
         Reset ->
             ( model, Cmd.none )
 
+        -- InitialState v -> --p1 p2 -> -- (x, y, value) -> -- (x1, y1, value1) ->
+            -- ( model, Cmd.none )
+
 --SUBSCRIPTIONS
 
 subscriptions : Model -> Sub Msg
@@ -127,7 +136,7 @@ view : Model -> Html Msg
 view model =
     div
         []
-        [ viewHeader model.gameState.score model.bestScore
+        [ viewHeader model.score model.bestScore
         , viewGameContainer model
         ]
 
@@ -154,16 +163,17 @@ viewGameContainer model =
             , boxSizing borderBox
             ]
         ]
-        [ viewGrid model.gameState.grid.size
+        [ viewGrid model.size
+        , viewTiles model.size model.grid
         ]
 
 viewGrid : Int -> Html Msg
 viewGrid size =
     div [] <|
-        List.map ( viewGridRow size ) ( List.range 1 size )
+        List.repeat size ( viewGridRow size )
 
-viewGridRow : Int -> Int -> Html Msg
-viewGridRow size _ =
+viewGridRow : Int -> Html Msg
+viewGridRow size =
     div
         [ css
             [ displayFlex
@@ -172,9 +182,9 @@ viewGridRow size _ =
             ]
         ]
         <|
-            List.map viewGridCell ( List.range 1 size )
+            List.repeat size ( viewGridCell () )
 
-viewGridCell : Int -> Html Msg
+viewGridCell : () -> Html Msg
 viewGridCell _ =
     div
         [ css
@@ -185,3 +195,46 @@ viewGridCell _ =
             ]
         ] []
 
+viewTiles : Int -> GameGrid -> Html Msg
+viewTiles size grid =
+    div
+        []
+        (
+            grid
+                |> List.foldr (++) []
+                |> List.filter
+                    (\value ->
+                        case value of
+                            Just _ ->
+                                True
+
+                            Nothing ->
+                                False
+                    )
+                |> List.map viewTile
+        )
+
+viewTile : Cell -> Html Msg
+viewTile cell =
+    case cell of
+        Just cellValue ->
+            let
+                x = cellValue.x
+                y = cellValue.y
+                value = cellValue.value
+            in
+                div
+                    [ css
+                        [ position absolute
+                        , width <| px cellSize
+                        , height <| px cellSize
+                        , lineHeight <| px cellSize
+                        , transform <| translate2 ( px ( toFloat <|  x * cellSize ) ) ( px ( toFloat <| y * cellSize ) )
+                        , Css.Transitions.transition
+                            [ Css.Transitions.transform3 100 0 Css.Transitions.easeInOut ]
+                        ]
+                    ]
+                    [ text <| String.fromInt value ]
+
+        Nothing ->
+            text ""
