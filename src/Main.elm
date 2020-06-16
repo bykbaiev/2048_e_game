@@ -55,13 +55,12 @@ main =
 -- MODEL
 
 type alias Cell =
-    Maybe
-        { x : Int
-        , y : Int
-        , value: Int
-        }
+    { x : Int
+    , y : Int
+    , value: Int
+    }
 
-type alias GameGrid = List ( List ( Cell ) )
+type alias GameGrid = List ( List ( Maybe Cell ) )
 
 type alias Model =
     { bestScore: Int
@@ -75,6 +74,14 @@ emptyGrid : Int -> GameGrid
 emptyGrid size =
     List.repeat size <| List.repeat size Nothing
 
+randomPoint : Random.Generator Cell
+randomPoint =
+    Random.map3
+        (\x y value -> { x = x, y = y, value = if value < 0.9 then 2 else 4 })
+        ( Random.int 0 3 )
+        ( Random.int 0 3 )
+        ( Random.float 0 1 )
+
 init : () -> ( Model, Cmd Msg )
 init () =
     (
@@ -84,12 +91,7 @@ init () =
         , bestScore = 0
         , size = 4 -- can be configurable one day
         }
-        , Cmd.none
-        -- Random.list ( 2 * 3 ) ( Random.int 0 3 )
-        --     -- |> valueToCell
-        --     |> Random.generate InitialState
-
-        -- Random.generate InitialState ( Random.int 0 4 ) --, ( Random.int 0 4 ), ( Random.int 1 2 ) )
+        , Random.generate InitialState ( Random.list 2 randomPoint )
     )
 
 -- UPDATE
@@ -97,7 +99,26 @@ init () =
 type Msg =
     KeyDown Direction
     | Reset
-    -- | InitialState List Int -- Cell Cell -- ( Int, Int, Int ) -- (Int Int Int)
+    | InitialState ( List ( Cell ) )
+
+replaceCell : List ( Cell ) -> Int -> Int -> Maybe Cell -> Maybe Cell
+replaceCell cells rowIndex columnIndex oldCell =
+    let
+        newCell = List.head <| List.filter (\c -> c.x == columnIndex && c.y == rowIndex) cells
+    in
+        case newCell of
+            Just _ ->
+                newCell
+
+            Nothing ->
+                oldCell
+
+setCells : List ( Cell ) -> ( GameGrid -> GameGrid )
+setCells cells =
+    List.indexedMap
+        (\rowIndex row ->
+            List.indexedMap (\columnIndex cell -> replaceCell cells rowIndex columnIndex cell ) row
+        )
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
@@ -121,8 +142,8 @@ update msg model =
         Reset ->
             ( model, Cmd.none )
 
-        -- InitialState v -> --p1 p2 -> -- (x, y, value) -> -- (x1, y1, value1) ->
-            -- ( model, Cmd.none )
+        InitialState cells ->
+            ( { model | grid = setCells cells model.grid }, Cmd.none )
 
 --SUBSCRIPTIONS
 
@@ -161,6 +182,8 @@ viewGameContainer model =
             , width <| px 500
             , height <| px 500
             , boxSizing borderBox
+            , color <| hex "776e65"
+            , fontFamilies [ "Clear Sans", "Helvetica Neue", "Arial", "sans-serif" ]
             ]
         ]
         [ viewGrid model.size
@@ -169,8 +192,14 @@ viewGameContainer model =
 
 viewGrid : Int -> Html Msg
 viewGrid size =
-    div [] <|
-        List.repeat size ( viewGridRow size )
+    div
+        [ css
+            [ position absolute
+            , zIndex <| int 1
+            ]
+        ]
+        <|
+            List.repeat size ( viewGridRow size )
 
 viewGridRow : Int -> Html Msg
 viewGridRow size =
@@ -188,7 +217,8 @@ viewGridCell : () -> Html Msg
 viewGridCell _ =
     div
         [ css
-            [ width <| px 106.25
+            [ marginRight <| px 15
+            , width <| px 106.25
             , height <| px 106.25
             , borderRadius <| px 3
             , backgroundColor <| rgba 238 228 218 0.35
@@ -198,7 +228,11 @@ viewGridCell _ =
 viewTiles : Int -> GameGrid -> Html Msg
 viewTiles size grid =
     div
-        []
+        [ css
+            [ position absolute
+            , zIndex <| int 2
+            ]
+        ]
         (
             grid
                 |> List.foldr (++) []
@@ -214,11 +248,12 @@ viewTiles size grid =
                 |> List.map viewTile
         )
 
-viewTile : Cell -> Html Msg
+viewTile : Maybe Cell -> Html Msg
 viewTile cell =
     case cell of
         Just cellValue ->
             let
+                wholeCellSize = cellSize + 15
                 x = cellValue.x
                 y = cellValue.y
                 value = cellValue.value
@@ -229,12 +264,23 @@ viewTile cell =
                         , width <| px cellSize
                         , height <| px cellSize
                         , lineHeight <| px cellSize
-                        , transform <| translate2 ( px ( toFloat <|  x * cellSize ) ) ( px ( toFloat <| y * cellSize ) )
+                        , transform <| translate2 ( px ( toFloat <|  x * wholeCellSize ) ) ( px ( toFloat <| y * wholeCellSize ) )
                         , Css.Transitions.transition
                             [ Css.Transitions.transform3 100 0 Css.Transitions.easeInOut ]
                         ]
                     ]
-                    [ text <| String.fromInt value ]
+                    [ div
+                        [ css
+                            [ borderRadius <| px 3
+                            , backgroundColor <| hex "EEE4DA"
+                            , textAlign center
+                            , fontWeight bold
+                            , fontSize <| px 55
+                            , zIndex <| int 10
+                            ]
+                        ]
+                        [ text <| String.fromInt value ]
+                    ]
 
         Nothing ->
             text ""
