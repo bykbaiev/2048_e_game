@@ -10,7 +10,10 @@ import Browser.Events exposing (onKeyDown)
 import Json.Decode as Decode
 import Random
 
+boardSize = 4
+gameBoardWidth = 500
 cellSize = 107
+cellMarginSize = 15
 
 type Direction
     = Left
@@ -85,11 +88,11 @@ randomPoint =
 init : () -> ( Model, Cmd Msg )
 init () =
     (
-        { grid = emptyGrid 4
+        { grid = emptyGrid boardSize
         , score = 0
         , won = False
         , bestScore = 0
-        , size = 4 -- can be configurable one day
+        , size = boardSize -- can be configurable one day
         }
         , Random.generate InitialState ( Random.list 2 randomPoint )
     )
@@ -174,13 +177,13 @@ viewGameContainer model =
     div
         [ css
             [ position relative
-            , padding <| px 15
+            , padding <| px cellMarginSize
             , margin auto
             , marginTop <| px 40
             , backgroundColor <| hex "#BBADA0"
             , borderRadius <| px 6
-            , width <| px 500
-            , height <| px 500
+            , width <| px gameBoardWidth
+            , height <| px gameBoardWidth
             , boxSizing borderBox
             , color <| hex "776e65"
             , fontFamilies [ "Clear Sans", "Helvetica Neue", "Arial", "sans-serif" ]
@@ -207,7 +210,7 @@ viewGridRow size =
         [ css
             [ displayFlex
             , justifyContent spaceBetween
-            , marginBottom <| px 15
+            , marginBottom <| px cellMarginSize
             ]
         ]
         <|
@@ -217,7 +220,7 @@ viewGridCell : () -> Html Msg
 viewGridCell _ =
     div
         [ css
-            [ marginRight <| px 15
+            [ marginRight <| px cellMarginSize
             , width <| px 106.25
             , height <| px 106.25
             , borderRadius <| px 3
@@ -253,7 +256,7 @@ viewTile cell =
     case cell of
         Just cellValue ->
             let
-                wholeCellSize = cellSize + 15
+                wholeCellSize = cellSize + cellMarginSize
                 x = cellValue.x
                 y = cellValue.y
                 value = cellValue.value
