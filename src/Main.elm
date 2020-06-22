@@ -9,12 +9,22 @@ import Css.Transitions
 import Browser.Events exposing (onKeyDown)
 import Json.Decode as Decode
 import Random
+import Random.Set
+import Array
+import Set
+import Html.Attributes exposing (value)
+
+import Debug
 
 boardSize = 4
 gameBoardWidth = 500
 cellSize = 107
 cellMarginSize = 15
+occupiedCell = -1000
 
+flat : List ( List a ) -> List a
+flat list =
+    List.foldr (++) [] list
 type Direction
     = Left
     | Right
@@ -66,9 +76,9 @@ type alias Cell =
 type alias GameGrid = List ( List ( Maybe Cell ) )
 
 type alias Model =
-    { bestScore: Int
-    , size: Int
-    , grid: GameGrid
+    { bestScore : Int
+    , size : Int
+    , grid : GameGrid
     , score : Int
     , won : Bool
     }
@@ -77,32 +87,116 @@ emptyGrid : Int -> GameGrid
 emptyGrid size =
     List.repeat size <| List.repeat size Nothing
 
-randomPoint : Random.Generator Cell
-randomPoint =
-    Random.map3
-        (\x y value -> { x = x, y = y, value = if value < 0.9 then 2 else 4 })
-        ( Random.int 0 3 )
-        ( Random.int 0 3 )
-        ( Random.float 0 1 )
+randomPoint : Int -> GameGrid -> Int -> Random.Generator ( List Cell )
+randomPoint count grid size =
+    let
+        cells = flat grid
+
+        _ = Debug.log "CELLS: " <| String.join
+            ", "
+            (
+                List.map
+                    (\v ->
+                        case v of
+                            Just value ->
+                                String.fromInt value.value
+
+                            Nothing ->
+                                "0"
+                    )
+                    cells
+            )
+
+        nonUsedCellsIndexes =
+            List.indexedMap
+                (\index cell ->
+                    case cell of
+                        Just _ ->
+                            occupiedCell
+
+                        Nothing ->
+                            index
+                )
+                cells
+
+        _ = Debug.log
+            "NON_USED_CELLS_INDEXES"
+            <| String.join ", " <| List.map String.fromInt nonUsedCellsIndexes
+
+        indexes = List.filter (\index -> index /= occupiedCell) nonUsedCellsIndexes
+
+        _ = Debug.log
+            "NON_OCCUPIED_CELLS"
+            <| String.join ", " <| List.map String.fromInt indexes
+
+        indexToNonUsedCellIndex : Int -> Int
+        indexToNonUsedCellIndex index =
+            case Array.get index <| Array.fromList indexes of
+                Just value ->
+                    value
+
+                Nothing ->
+                    0
+
+        mapIndexesToCells : Set.Set Int -> List Float -> List Cell
+        mapIndexesToCells set values =
+            let
+                _ = Debug.log
+                    "RANDOM VALUES"
+                    <| String.join ", " <| List.map String.fromInt <| Set.toList set
+            in
+                List.indexedMap
+                    (\index value ->
+                        let
+                            nonUsedCellIndex = indexToNonUsedCellIndex value
+
+                            _ = Debug.log "INDEX: " value
+                            _ = Debug.log "NON_USED_CELL_INDEX" nonUsedCellIndex
+
+                            cellValue =
+                                case Array.get index <| Array.fromList values of
+                                    Just v ->
+                                        if v < 0.9 then 2 else 4
+
+                                    Nothing ->
+                                        0
+
+                            y = nonUsedCellIndex // size
+
+                            x = nonUsedCellIndex - y * size
+                        in
+                            { x = x, y = y, value = cellValue }
+                    )
+                    ( Set.toList set )
+    in
+        Random.map2
+            mapIndexesToCells
+            ( Random.Set.set count ( Random.int 0 <| ( List.length indexes ) - 1 ) )
+            ( Random.list count ( Random.float 0 1 ) )
 
 init : () -> ( Model, Cmd Msg )
 init () =
-    (
-        { grid = emptyGrid boardSize
-        , score = 0
-        , won = False
-        , bestScore = 0
-        , size = boardSize -- can be configurable one day
-        }
-        , Random.generate InitialState ( Random.list 2 randomPoint )
-    )
+    let
+        initialGrid = emptyGrid boardSize
+    in
+        (
+            { grid = initialGrid
+            , score = 0
+            , won = False
+            , bestScore = 0
+            , size = boardSize -- can be configurable one day
+            }
+            , Random.generate RandomCells ( randomPoint 2 initialGrid boardSize )
+        )
 
 -- UPDATE
 
 type Msg =
     KeyDown Direction
+    | RandomCell Cell
     | Reset
     | InitialState ( List ( Cell ) )
+    | RandomCells ( List ( Cell ) )
 
 replaceCell : List ( Cell ) -> Int -> Int -> Maybe Cell -> Maybe Cell
 replaceCell cells rowIndex columnIndex oldCell =
@@ -129,21 +223,27 @@ update msg model =
         KeyDown direction ->
             case direction of
                 Up ->
-                    ( model, Cmd.none )
+                    ( model, Random.generate RandomCells ( randomPoint 1 model.grid model.size ) )
 
                 Right ->
-                    ( model, Cmd.none )
+                    ( model, Random.generate RandomCells ( randomPoint 1 model.grid model.size ) )
 
                 Down ->
-                    ( model, Cmd.none )
+                    ( model, Random.generate RandomCells ( randomPoint 1 model.grid model.size ) )
 
                 Left ->
-                    ( model, Cmd.none )
+                    ( model, Random.generate RandomCells ( randomPoint 1 model.grid model.size ) )
 
                 Other ->
                     ( model, Cmd.none )
         Reset ->
             ( model, Cmd.none )
+
+        RandomCell cell ->
+            ( { model | grid = setCells [ cell ] model.grid }, Cmd.none )
+
+        RandomCells cells ->
+            ( { model | grid = setCells cells model.grid }, Cmd.none )
 
         InitialState cells ->
             ( { model | grid = setCells cells model.grid }, Cmd.none )
@@ -162,6 +262,7 @@ view model =
         []
         [ viewHeader model.score model.bestScore
         , viewGameContainer model
+        , viewFooter model.grid
         ]
 
 viewHeader : Int -> Int -> Html Msg
@@ -238,7 +339,7 @@ viewTiles size grid =
         ]
         (
             grid
-                |> List.foldr (++) []
+                |> flat
                 |> List.filter
                     (\value ->
                         case value of
@@ -287,3 +388,21 @@ viewTile cell =
 
         Nothing ->
             text ""
+
+viewFooter : GameGrid -> Html Msg
+viewFooter grid =
+    let
+        cells = List.map
+            (\value ->
+                case value of
+                    Just cell ->
+                        String.fromInt cell.value
+
+                    Nothing ->
+                        "0"
+            )
+            <| flat grid
+    in
+        div
+            []
+            [ text <| String.join ", " cells ]
