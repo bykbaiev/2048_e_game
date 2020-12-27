@@ -1,4 +1,11 @@
-module Game exposing (Model, Msg, init, subscriptions, update, view)
+module Game exposing
+    ( Model
+    , Msg
+    , init
+    , subscriptions
+    , update
+    , view
+    )
 
 import Array
 import Browser
@@ -12,6 +19,7 @@ import Html.Styled.Attributes exposing (css)
 import Json.Decode as D exposing (Decoder)
 import Random
 import RandomCell exposing (Cell, randomCells)
+import Svg.Styled.Attributes exposing (k)
 
 
 
@@ -104,8 +112,37 @@ type Msg
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg (Internals model) =
     case msg of
-        KeyDown direction ->
+        KeyDown Other ->
             ( Internals model, Cmd.none )
+
+        KeyDown direction ->
+            let
+                _ =
+                    Debug.log "direction" direction
+
+                wonOrFailed =
+                    model.won || model.failed
+
+                _ =
+                    Debug.log "won or failed" wonOrFailed
+
+                newGrid =
+                    if wonOrFailed then
+                        model.grid
+
+                    else
+                        move direction model.grid
+
+                _ =
+                    Debug.log "new updated grid" newGrid
+
+                -- newGrid =
+                -- if won then nothing
+                -- if failed then nothing
+                -- if nothing changes then nothing
+                --
+            in
+            ( Internals { model | grid = newGrid }, Cmd.none )
 
         Reset ->
             init ()
@@ -223,68 +260,54 @@ viewGridCell _ =
 
 viewTiles : Int -> GameGrid -> Html Msg
 viewTiles size grid =
+    let
+        withIndexes rowI colI value =
+            { x = colI, y = rowI, value = value }
+
+        nonEmptyCells =
+            grid
+                |> List.indexedMap (\rowI -> List.indexedMap <| withIndexes rowI)
+                |> List.concat
+                |> List.filter (\{ value } -> value /= Nothing)
+    in
     div
         [ css
             [ position absolute
             , zIndex <| int 2
             ]
         ]
-        (grid
-            |> List.concat
-            |> List.filter
-                (\value ->
-                    case value of
-                        Just _ ->
-                            True
-
-                        Nothing ->
-                            False
-                )
-            |> List.map (text << Maybe.withDefault "0" << Maybe.map String.fromInt)
-         --viewTile
-        )
+        (List.map viewTile nonEmptyCells)
 
 
-
--- viewTile : Maybe Cell -> Html Msg
--- viewTile cell =
---     case cell of
---         Just cellValue ->
---             let
---                 wholeCellSize =
---                     cellSize + cellMarginSize
---                 x =
---                     cellValue.x
---                 y =
---                     cellValue.y
---                 value =
---                     cellValue.value
---             in
---             div
---                 [ css
---                     [ position absolute
---                     , width <| px cellSize
---                     , height <| px cellSize
---                     , lineHeight <| px cellSize
---                     , transform <| translate2 (px (toFloat <| x * wholeCellSize)) (px (toFloat <| y * wholeCellSize))
---                     , Css.Transitions.transition
---                         [ Css.Transitions.transform3 100 0 Css.Transitions.easeInOut ]
---                     ]
---                 ]
---                 [ div
---                     [ css
---                         [ borderRadius <| px 3
---                         , backgroundColor <| hex "EEE4DA"
---                         , textAlign center
---                         , fontWeight bold
---                         , fontSize <| px 55
---                         , zIndex <| int 10
---                         ]
---                     ]
---                     [ text <| String.fromInt value ]
---                 ]
---         Nothing ->
---             text ""
+viewTile : { x : Int, y : Int, value : Maybe Int } -> Html Msg
+viewTile cell =
+    let
+        wholeCellSize =
+            cellSize + cellMarginSize
+    in
+    div
+        [ css
+            [ position absolute
+            , width <| px cellSize
+            , height <| px cellSize
+            , lineHeight <| px cellSize
+            , transform <| translate2 (px (toFloat cell.x * wholeCellSize)) (px (toFloat cell.y * wholeCellSize))
+            , Css.Transitions.transition
+                [ Css.Transitions.transform3 100 0 Css.Transitions.easeInOut ]
+            ]
+        ]
+        [ div
+            [ css
+                [ borderRadius <| px 3
+                , backgroundColor <| hex "EEE4DA"
+                , textAlign center
+                , fontWeight bold
+                , fontSize <| px 55
+                , zIndex <| int 10
+                ]
+            ]
+            [ (text << Maybe.withDefault "" << Maybe.map String.fromInt) cell.value ]
+        ]
 
 
 viewFooter : GameGrid -> Html Msg
@@ -356,9 +379,34 @@ isWon targetScore grid =
 
 isFailed : Int -> GameGrid -> Bool
 isFailed targetScore grid =
-    -- not (isWon targetScore grid) && List.
-    -- TODO add business logic to calculate if game is failed
-    False
+    let
+        checkRowForPossibleMove row =
+            row
+                |> List.foldr
+                    (\cell { res, prev } ->
+                        if res == True then
+                            { res = res, prev = prev }
+
+                        else
+                            { res = cell == prev, prev = cell }
+                    )
+                    { prev = Nothing, res = False }
+                |> .res
+
+        isFull =
+            grid
+                |> List.concat
+                |> List.filter ((==) Nothing)
+                |> List.length
+                |> (==) 0
+
+        isMovePossible =
+            List.foldr (\row accum -> accum || checkRowForPossibleMove row) False
+    in
+    not (isWon targetScore grid)
+        && isFull
+        && (not <| isMovePossible grid)
+        && (not << isMovePossible << transpose) grid
 
 
 
@@ -379,6 +427,110 @@ withCells cells =
                             val
                 )
         )
+
+
+transpose : GameGrid -> GameGrid
+transpose grid =
+    case List.head grid of
+        Nothing ->
+            []
+
+        Just xs ->
+            List.indexedMap
+                (\index _ ->
+                    List.map
+                        (Maybe.withDefault Nothing
+                            << List.head
+                            << List.filter ((/=) Nothing)
+                            << List.indexedMap
+                                (\i cell ->
+                                    if i == index then
+                                        cell
+
+                                    else
+                                        Nothing
+                                )
+                        )
+                        grid
+                )
+                xs
+
+
+rotateClockwise : GameGrid -> GameGrid
+rotateClockwise =
+    List.map List.reverse << transpose
+
+
+rotateAntiClockwise : GameGrid -> GameGrid
+rotateAntiClockwise =
+    transpose << List.map List.reverse
+
+
+move : Direction -> GameGrid -> GameGrid
+move direction =
+    case direction of
+        Right ->
+            moveRight
+
+        Left ->
+            rotateClockwise
+                << rotateClockwise
+                << moveRight
+                << rotateClockwise
+                << rotateClockwise
+
+        Up ->
+            rotateAntiClockwise << moveRight << rotateClockwise
+
+        Down ->
+            rotateClockwise << moveRight << rotateAntiClockwise
+
+        Other ->
+            identity
+
+
+moveRight : GameGrid -> GameGrid
+moveRight =
+    List.map
+        (addEmpties 4
+            << removeEmpties
+            << List.reverse
+            << List.foldr
+                (\cell accum ->
+                    if cell == last accum then
+                        removeLast accum ++ [ Maybe.map ((*) 2) cell, Nothing ]
+
+                    else
+                        accum ++ [ cell ]
+                )
+                []
+            << List.reverse
+            << addEmpties 4
+            << removeEmpties
+        )
+
+
+removeEmpties : Row -> Row
+removeEmpties =
+    List.filter ((/=) Nothing)
+
+
+addEmpties : Int -> Row -> Row
+addEmpties size row =
+    List.repeat (size - List.length row) Nothing ++ row
+
+
+removeLast : Row -> Row
+removeLast row =
+    row
+        |> List.indexedMap Tuple.pair
+        |> List.filter (\( index, value ) -> index /= List.length row - 1)
+        |> List.map Tuple.second
+
+
+last : Row -> Maybe Int
+last =
+    Maybe.withDefault Nothing << List.head << List.reverse
 
 
 
