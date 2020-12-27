@@ -136,13 +136,33 @@ update msg (Internals model) =
                 _ =
                     Debug.log "new updated grid" newGrid
 
+                isNothingChanged =
+                    wonOrFailed
+                        || (model.grid
+                                |> List.concat
+                                |> (==) (List.concat newGrid)
+                           )
+
                 -- newGrid =
                 -- if won then nothing
                 -- if failed then nothing
                 -- if nothing changes then nothing
                 --
+                newModel =
+                    if isNothingChanged then
+                        Internals model
+
+                    else
+                        Internals { model | grid = newGrid }
+
+                cmd =
+                    if isNothingChanged then
+                        Cmd.none
+
+                    else
+                        Random.generate GotNewCells (randomCells 1 (availableCells newGrid))
             in
-            ( Internals { model | grid = newGrid }, Cmd.none )
+            ( newModel, cmd )
 
         Reset ->
             init ()
