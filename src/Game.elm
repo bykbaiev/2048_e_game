@@ -1,17 +1,17 @@
 module Game exposing
-    ( Model
+    ( Direction(..)
+    , Model
     , Msg
     , init
+    , move
     , subscriptions
     , update
     , view
     )
 
-import Array
-import Browser
 import Browser.Events exposing (onKeyDown)
 import Css exposing (..)
-import Css.Media exposing (Interlace)
+import Css.Media
 import Css.Transitions
 import Html.Attributes exposing (value)
 import Html.Styled exposing (..)
@@ -509,10 +509,18 @@ move direction =
             identity
 
 
+
+-- TODO add tests
+
+
 moveRight : GameGrid -> GameGrid
-moveRight =
+moveRight grid =
+    let
+        addEmptyCells =
+            addEmpties (List.length grid)
+    in
     List.map
-        (addEmpties 4
+        (addEmptyCells
             << removeEmpties
             << List.reverse
             << List.foldr
@@ -524,10 +532,10 @@ moveRight =
                         accum ++ [ cell ]
                 )
                 []
-            << List.reverse
-            << addEmpties 4
+            << addEmptyCells
             << removeEmpties
         )
+        grid
 
 
 removeEmpties : Row -> Row
