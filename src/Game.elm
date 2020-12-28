@@ -11,16 +11,12 @@ module Game exposing
 
 import Browser.Events exposing (onKeyDown)
 import Css exposing (..)
-import Css.Media
-import Css.Transitions
 import Html.Attributes exposing (value)
 import Html.Styled exposing (..)
 import Html.Styled.Attributes exposing (css)
-import Html.Styled.Keyed as Keyed
 import Json.Decode as D exposing (Decoder)
 import Random
 import StyleVariables exposing (..)
-import Svg.Styled.Attributes exposing (direction)
 import Tile exposing (Tile, randomTiles)
 
 
@@ -120,11 +116,6 @@ update msg (Internals model) =
                 isNothingChanged =
                     wonOrFailed || model.tiles == newTiles
 
-                -- newGrid =
-                -- if won then nothing
-                -- if failed then nothing
-                -- if nothing changes then nothing
-                --
                 newModel =
                     if isNothingChanged then
                         Internals model
@@ -332,9 +323,6 @@ isWon targetScore =
 isFailed : Int -> Int -> List Tile -> Bool
 isFailed targetScore size tiles =
     let
-        _ =
-            Debug.log "isFailed" ( targetScore, size, tiles )
-
         isFull =
             List.length tiles == size * size
 
@@ -384,15 +372,6 @@ isFailed targetScore size tiles =
                             )
                             { prev = x, sameValues = False }
                         |> .sameValues
-
-        _ =
-            Debug.log "isFull" isFull
-
-        _ =
-            Debug.log "rows without moves" (not <| isMovePossible sortedByRows)
-
-        _ =
-            Debug.log "columns without moves" (not <| isMovePossible sortedByColumns)
     in
     not (isWon targetScore tiles)
         && isFull
@@ -407,32 +386,6 @@ isFailed targetScore size tiles =
 withTiles : List Tile -> List Tile -> List Tile
 withTiles =
     (++)
-
-
-
--- transpose : GameGrid -> GameGrid
--- transpose grid =
---     case List.head grid of
---         Nothing ->
---             []
---         Just xs ->
---             List.indexedMap
---                 (\index _ ->
---                     List.map
---                         (Maybe.withDefault Nothing
---                             << List.head
---                             << List.filter ((/=) Nothing)
---                             << List.indexedMap
---                                 (\i cell ->
---                                     if i == index then
---                                         cell
---                                     else
---                                         Nothing
---                                 )
---                         )
---                         grid
---                 )
---                 xs
 
 
 rotateClockwise : Int -> List Tile -> List Tile
