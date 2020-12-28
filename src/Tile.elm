@@ -1,4 +1,14 @@
-module Tile exposing (Tile, column, randomTiles, row, value, view, withKey)
+module Tile exposing
+    ( Tile
+    , column
+    , randomTiles
+    , row
+    , sortTilesByColumns
+    , sortTilesByRows
+    , value
+    , view
+    , withKey
+    )
 
 import Css exposing (..)
 import Css.Transitions
@@ -62,6 +72,32 @@ withKey tiles initialKey =
     ( List.indexedMap tileWithKey tiles
     , newInitialKey
     )
+
+
+sortTilesByRows : List Tile -> List Tile
+sortTilesByRows tiles =
+    List.sortWith
+        (\(Tile _ left) (Tile _ right) ->
+            if left.row < right.row || (left.row == right.row && left.column < right.column) then
+                LT
+
+            else
+                GT
+        )
+        tiles
+
+
+sortTilesByColumns : List Tile -> List Tile
+sortTilesByColumns tiles =
+    List.sortWith
+        (\(Tile _ left) (Tile _ right) ->
+            if left.column < right.column || (left.column == right.column && left.row < right.row) then
+                LT
+
+            else
+                GT
+        )
+        tiles
 
 
 

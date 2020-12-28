@@ -328,29 +328,63 @@ isWon targetScore =
 isFailed : Int -> Int -> List Tile -> Bool
 isFailed targetScore size tiles =
     let
-        -- checkRowForPossibleMove row =
-        --     row
-        --         |> List.foldr
-        --             (\cell { res, prev } ->
-        --                 if res == True then
-        --                     { res = res, prev = prev }
-        --                 else
-        --                     { res = cell == prev, prev = cell }
-        --             )
-        --             { prev = Nothing, res = False }
-        --         |> .res
         isFull =
             List.length tiles == size
 
-        -- isMovePossible =
-        --     List.foldr (\row accum -> accum || checkRowForPossibleMove row) False
+        sortedByRows =
+            Tile.sortTilesByRows tiles
+
+        sortedByColumns =
+            Tile.sortTilesByColumns tiles
+
+        isMovePossible : List Tile -> Bool
+        isMovePossible sortedTiles =
+            case sortedTiles of
+                [] ->
+                    False
+
+                x :: xs ->
+                    xs
+                        |> List.foldr
+                            (\tile { prev, sameValues } ->
+                                let
+                                    value =
+                                        Tile.value tile
+
+                                    row =
+                                        Tile.row tile
+
+                                    col =
+                                        Tile.column tile
+
+                                    prevValue =
+                                        Tile.value prev
+
+                                    prevRow =
+                                        Tile.row prev
+
+                                    prevCol =
+                                        Tile.column prev
+                                in
+                                if sameValues then
+                                    { prev = prev, sameValues = sameValues }
+
+                                else if prevValue == value && (col == prevCol || row == prevRow) then
+                                    { prev = tile, sameValues = True }
+
+                                else
+                                    { prev = tile, sameValues = sameValues }
+                            )
+                            { prev = x, sameValues = False }
+                        |> .sameValues
     in
-    not (isWon targetScore tiles) && isFull
+    not (isWon targetScore tiles)
+        && isFull
+        && (not <| isMovePossible sortedByRows)
+        && (not <| isMovePossible sortedByColumns)
 
 
 
--- && (not <| isMovePossible grid)
--- && (not << isMovePossible << transpose) grid
 -- TRANSFORMERS
 
 
