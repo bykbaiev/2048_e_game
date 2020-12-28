@@ -20,6 +20,7 @@ import Html.Styled.Keyed as Keyed
 import Json.Decode as D exposing (Decoder)
 import Random
 import StyleVariables exposing (..)
+import Svg.Styled.Attributes exposing (direction)
 import Tile exposing (Tile, randomTiles)
 
 
@@ -103,6 +104,9 @@ update msg (Internals model) =
 
         KeyDown (Just direction) ->
             let
+                _ =
+                    Debug.log "KeyDown" direction
+
                 wonOrFailed =
                     model.status == Won || model.status == Failed
 
@@ -328,8 +332,11 @@ isWon targetScore =
 isFailed : Int -> Int -> List Tile -> Bool
 isFailed targetScore size tiles =
     let
+        _ =
+            Debug.log "isFailed" ( targetScore, size, tiles )
+
         isFull =
-            List.length tiles == size
+            List.length tiles == size * size
 
         sortedByRows =
             Tile.sortTilesByRows tiles
@@ -377,6 +384,15 @@ isFailed targetScore size tiles =
                             )
                             { prev = x, sameValues = False }
                         |> .sameValues
+
+        _ =
+            Debug.log "isFull" isFull
+
+        _ =
+            Debug.log "rows without moves" (not <| isMovePossible sortedByRows)
+
+        _ =
+            Debug.log "columns without moves" (not <| isMovePossible sortedByColumns)
     in
     not (isWon targetScore tiles)
         && isFull
@@ -417,144 +433,69 @@ withTiles =
 --                         grid
 --                 )
 --                 xs
--- rotateClockwise : GameGrid -> GameGrid
--- rotateClockwise =
---     List.map List.reverse << transpose
--- rotateAntiClockwise : GameGrid -> GameGrid
--- rotateAntiClockwise =
---     transpose << List.map List.reverse
+
+
+rotateClockwise : Int -> List Tile -> List Tile
+rotateClockwise size =
+    Tile.reverse (size - 1) << Tile.transpose
+
+
+rotateAntiClockwise : Int -> List Tile -> List Tile
+rotateAntiClockwise size =
+    Tile.transpose << Tile.reverse (size - 1)
 
 
 move : Direction -> Int -> List Tile -> List Tile
-move direction =
+move direction size =
     case direction of
         Right ->
-            moveRight
+            moveRight size
 
         Left ->
-            moveRight
+            rotateClockwise size
+                << rotateClockwise size
+                << moveRight size
+                << rotateClockwise size
+                << rotateClockwise size
 
-        -- rotateClockwise
-        --     << rotateClockwise
-        --     << moveRight
-        --     << rotateClockwise
-        --     << rotateClockwise
         Up ->
-            moveRight
+            rotateAntiClockwise size << moveRight size << rotateClockwise size
 
-        -- rotateAntiClockwise << moveRight << rotateClockwise
         Down ->
-            moveRight
-
-
-
--- rotateClockwise << moveRight << rotateAntiClockwise
+            rotateClockwise size << moveRight size << rotateAntiClockwise size
 
 
 moveRight : Int -> List Tile -> List Tile
 moveRight size tiles =
     let
-        rows =
-            tiles
-                |> Tile.splitRows size
-                |> List.map (shiftRight <| size - 1)
-                |> List.concat
-
-        _ =
-            Debug.log "rows" rows
+        shift =
+            List.concat
+                << List.map (shiftRight <| size - 1)
+                << Tile.splitRows size
     in
-    -- tiles
-    rows
-        |> Tile.sortTilesByRows
-        |> List.foldr
-            (\tile accum ->
-                let
-                    value =
-                        Tile.value tile
+    tiles
+        |> shift
+        |> mergeRight
+        |> shift
 
-                    row =
-                        Tile.row tile
 
-                    prev : Maybe Tile
-                    prev =
-                        last accum
-
-                    prevMerged =
-                        Maybe.withDefault False <| Maybe.map Tile.merged prev
-
-                    prevValue =
-                        Maybe.withDefault 0 <| Maybe.map Tile.value prev
-
-                    prevRow =
-                        Maybe.withDefault 0 <| Maybe.map Tile.row prev
-
-                    mergedTile =
-                        Tile.withMerged True << Tile.withValue (value * 2)
-                in
-                if value == prevValue && row == prevRow && not prevMerged then
-                    removeLast accum ++ [ mergedTile tile ]
-
-                else
-                    accum ++ [ tile ]
-            )
+mergeRight : List Tile -> List Tile
+mergeRight tiles =
+    case tiles of
+        [] ->
             []
-        |> List.map (Tile.withMerged False)
-        |> Tile.splitRows size
-        |> List.map (shiftRight <| size - 1)
-        |> List.concat
+
+        x :: [] ->
+            [ x ]
+
+        x :: y :: xs ->
+            if Tile.value x == Tile.value y && Tile.row x == Tile.row y then
+                Tile.withValue (Tile.value x * 2) x :: mergeRight xs
+
+            else
+                x :: mergeRight (y :: xs)
 
 
 shiftRight : Int -> List Tile -> List Tile
 shiftRight maxColumn =
     List.reverse << List.indexedMap (\index -> Tile.moveRight (maxColumn - index)) << List.reverse
-
-
-last : List a -> Maybe a
-last =
-    List.head << List.reverse
-
-
-removeLast : List a -> List a
-removeLast lst =
-    let
-        length =
-            List.length lst
-    in
-    lst
-        |> List.indexedMap Tuple.pair
-        |> List.filter (\( index, value ) -> index /= length - 1)
-        |> List.map Tuple.second
-
-
-
--- List.map
---     (addEmptyCells
---         << removeEmpties
---         << List.reverse
---         << List.foldr
---             (\cell accum ->
---                 if cell == last accum then
---                     removeLast accum ++ [ Maybe.map ((*) 2) cell, Nothing ]
---                 else
---                     accum ++ [ cell ]
---             )
---             []
---         << addEmptyCells
---         << removeEmpties
---     )
---     grid
--- removeEmpties : Row -> Row
--- removeEmpties =
---     List.filter ((/=) Nothing)
--- addEmpties : Int -> Row -> Row
--- addEmpties size row =
---     List.repeat (size - List.length row) Nothing ++ row
--- removeLast : Row -> Row
--- removeLast row =
---     row
---         |> List.indexedMap Tuple.pair
---         |> List.filter (\( index, value ) -> index /= List.length row - 1)
---         |> List.map Tuple.second
--- last : Row -> Maybe Int
--- last =
---     Maybe.withDefault Nothing << List.head << List.reverse

@@ -4,10 +4,12 @@ module Tile exposing
     , merged
     , moveRight
     , randomTiles
+    , reverse
     , row
     , sortTilesByColumns
     , sortTilesByRows
     , splitRows
+    , transpose
     , value
     , view
     , withKey
@@ -155,8 +157,23 @@ getRows count index tiles =
         first :: getRows count (index + 1) rest
 
 
+transpose : List Tile -> List Tile
+transpose =
+    List.map
+        (\(Tile key internals) ->
+            Tile key { internals | row = internals.column, column = internals.row }
+        )
 
--- (List.foldr (\(Tile _ internals) { row, rows }) -> if internals.row == row then { row = row, rows = }  { row, rows }) << sortTilesByRows
+
+reverse : Int -> List Tile -> List Tile
+reverse maxColumn =
+    List.map
+        (\(Tile key internals) ->
+            Tile key { internals | column = maxColumn - internals.column }
+        )
+
+
+
 -- GENERATORS
 
 

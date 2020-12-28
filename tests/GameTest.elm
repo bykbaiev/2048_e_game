@@ -62,6 +62,24 @@ suite =
                 in
                 Expect.equalLists (move Right 4 tiles) expected
             )
+        , test "move right (without rotations) 4 * 4 (- 4 - 4 | - - 2 8)"
+            (\() ->
+                let
+                    tiles =
+                        [ Tile "key" { value = 4, row = 2, column = 1, merged = False }
+                        , Tile "key" { value = 4, row = 2, column = 3, merged = False }
+                        , Tile "key" { value = 2, row = 3, column = 2, merged = False }
+                        , Tile "key" { value = 8, row = 3, column = 3, merged = False }
+                        ]
+
+                    expected =
+                        [ Tile "key" { value = 8, row = 2, column = 3, merged = False }
+                        , Tile "key" { value = 2, row = 3, column = 2, merged = False }
+                        , Tile "key" { value = 8, row = 3, column = 3, merged = False }
+                        ]
+                in
+                Expect.equalLists (move Right 4 tiles) expected
+            )
 
         -- , test "move down 4 * 4"
         --     (\() ->
