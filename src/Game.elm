@@ -111,7 +111,7 @@ update msg (Internals model) =
                         model.tiles
 
                     else
-                        move direction model.tiles
+                        move direction model.size model.tiles
 
                 isNothingChanged =
                     wonOrFailed || model.tiles == newTiles
@@ -425,7 +425,7 @@ withTiles =
 --     transpose << List.map List.reverse
 
 
-move : Direction -> List Tile -> List Tile
+move : Direction -> Int -> List Tile -> List Tile
 move direction =
     case direction of
         Right ->
@@ -451,13 +451,79 @@ move direction =
 -- rotateClockwise << moveRight << rotateAntiClockwise
 
 
-moveRight : List Tile -> List Tile
-moveRight tiles =
-    -- let
-    --     addEmptyCells =
-    --         addEmpties (List.length grid)
-    -- in
-    tiles
+moveRight : Int -> List Tile -> List Tile
+moveRight size tiles =
+    let
+        rows =
+            tiles
+                |> Tile.splitRows size
+                |> List.map (shiftRight <| size - 1)
+                |> List.concat
+
+        _ =
+            Debug.log "rows" rows
+    in
+    -- tiles
+    rows
+        |> Tile.sortTilesByRows
+        |> List.foldr
+            (\tile accum ->
+                let
+                    value =
+                        Tile.value tile
+
+                    row =
+                        Tile.row tile
+
+                    prev : Maybe Tile
+                    prev =
+                        last accum
+
+                    prevMerged =
+                        Maybe.withDefault False <| Maybe.map Tile.merged prev
+
+                    prevValue =
+                        Maybe.withDefault 0 <| Maybe.map Tile.value prev
+
+                    prevRow =
+                        Maybe.withDefault 0 <| Maybe.map Tile.row prev
+
+                    mergedTile =
+                        Tile.withMerged True << Tile.withValue (value * 2)
+                in
+                if value == prevValue && row == prevRow && not prevMerged then
+                    removeLast accum ++ [ mergedTile tile ]
+
+                else
+                    accum ++ [ tile ]
+            )
+            []
+        |> List.map (Tile.withMerged False)
+        |> Tile.splitRows size
+        |> List.map (shiftRight <| size - 1)
+        |> List.concat
+
+
+shiftRight : Int -> List Tile -> List Tile
+shiftRight maxColumn =
+    List.reverse << List.indexedMap (\index -> Tile.moveRight (maxColumn - index)) << List.reverse
+
+
+last : List a -> Maybe a
+last =
+    List.head << List.reverse
+
+
+removeLast : List a -> List a
+removeLast lst =
+    let
+        length =
+            List.length lst
+    in
+    lst
+        |> List.indexedMap Tuple.pair
+        |> List.filter (\( index, value ) -> index /= length - 1)
+        |> List.map Tuple.second
 
 
 

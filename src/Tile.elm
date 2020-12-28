@@ -1,13 +1,18 @@
 module Tile exposing
-    ( Tile
+    ( Tile(..)
     , column
+    , merged
+    , moveRight
     , randomTiles
     , row
     , sortTilesByColumns
     , sortTilesByRows
+    , splitRows
     , value
     , view
     , withKey
+    , withMerged
+    , withValue
     )
 
 import Css exposing (..)
@@ -30,6 +35,7 @@ type Tile
 type alias Internals =
     { row : Int
     , column : Int
+    , merged : Bool
     , value : Int
     }
 
@@ -53,6 +59,11 @@ value (Tile _ internals) =
     internals.value
 
 
+merged : Tile -> Bool
+merged (Tile _ internals) =
+    internals.merged
+
+
 
 -- TRANSFORM
 
@@ -72,6 +83,21 @@ withKey tiles initialKey =
     ( List.indexedMap tileWithKey tiles
     , newInitialKey
     )
+
+
+withValue : Int -> Tile -> Tile
+withValue val (Tile key internals) =
+    Tile key { internals | value = val }
+
+
+withMerged : Bool -> Tile -> Tile
+withMerged mrgd (Tile key internals) =
+    Tile key { internals | merged = mrgd }
+
+
+moveRight : Int -> Tile -> Tile
+moveRight colIndex (Tile key internals) =
+    Tile key { internals | column = colIndex }
 
 
 sortTilesByRows : List Tile -> List Tile
@@ -100,7 +126,37 @@ sortTilesByColumns tiles =
         tiles
 
 
+splitRows : Int -> List Tile -> List (List Tile)
+splitRows count tiles =
+    case count of
+        0 ->
+            [ tiles ]
 
+        1 ->
+            [ tiles ]
+
+        _ ->
+            tiles
+                |> sortTilesByRows
+                |> getRows count 0
+                |> List.filter ((/=) [])
+
+
+getRows : Int -> Int -> List Tile -> List (List Tile)
+getRows count index tiles =
+    if index == count then
+        []
+
+    else
+        let
+            ( first, rest ) =
+                List.partition (\(Tile _ internals) -> internals.row == index) tiles
+        in
+        first :: getRows count (index + 1) rest
+
+
+
+-- (List.foldr (\(Tile _ internals) { row, rows }) -> if internals.row == row then { row = row, rows = }  { row, rows }) << sortTilesByRows
 -- GENERATORS
 
 
@@ -121,7 +177,10 @@ randomPosition availablePositions =
 
 randomTile : List ( Int, Int ) -> R.Generator Internals
 randomTile availablePositions =
-    R.map2 (\( rowIndex, colIndex ) -> Internals rowIndex colIndex) (randomPosition availablePositions) randomValue
+    R.map2
+        (\( rowIndex, colIndex ) -> Internals rowIndex colIndex False)
+        (randomPosition availablePositions)
+        randomValue
 
 
 randomTiles : Int -> List ( Int, Int ) -> R.Generator (List Tile)
