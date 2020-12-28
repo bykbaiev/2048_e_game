@@ -13,14 +13,20 @@ module.exports = {
                 exclude: [/elm-stuff/, /node_modules/],
                 use: {
                     loader: 'elm-webpack-loader',
-                    options: {}
+                    options: {
+                        debug: true
+                    }
                 }
             }
         ]
     },
 
+    mode: 'development',
+
     devServer: {
         inline: true,
-        stats: 'errors-only'
+        hot: true,
+        stats: 'errors-only',
+        historyApiFallback: true,
     }
 };

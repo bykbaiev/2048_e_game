@@ -1,4 +1,4 @@
-module Tile exposing (Tile, column, randomTiles, row, value, view)
+module Tile exposing (Tile, column, randomTiles, row, value, view, withKey)
 
 import Css exposing (..)
 import Css.Transitions
@@ -44,6 +44,27 @@ value (Tile _ internals) =
 
 
 
+-- TRANSFORM
+
+
+withKey : List Tile -> Int -> ( List Tile, Int )
+withKey tiles initialKey =
+    let
+        newInitialKey =
+            initialKey + List.length tiles
+
+        gotKey index =
+            String.fromInt <| initialKey + index
+
+        tileWithKey index (Tile _ internals) =
+            Tile (gotKey index) internals
+    in
+    ( List.indexedMap tileWithKey tiles
+    , newInitialKey
+    )
+
+
+
 -- GENERATORS
 
 
@@ -71,7 +92,7 @@ randomTiles : Int -> List ( Int, Int ) -> R.Generator (List Tile)
 randomTiles count availablePositions =
     randomTile availablePositions
         |> R.list count
-        |> R.map (List.map <| Tile "asdf")
+        |> R.map (List.map <| Tile "HARDCODED_KEY")
 
 
 

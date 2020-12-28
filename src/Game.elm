@@ -142,8 +142,11 @@ update msg (Internals model) =
 
         GotNewTiles newTiles ->
             let
+                ( keyedTiles, nextTileKey ) =
+                    Tile.withKey newTiles model.nextTileKey
+
                 tiles =
-                    withTiles newTiles model.tiles
+                    withTiles keyedTiles model.tiles
 
                 won =
                     isWon model.targetScore tiles
@@ -154,6 +157,7 @@ update msg (Internals model) =
             ( Internals
                 { model
                     | tiles = tiles
+                    , nextTileKey = nextTileKey
                     , status =
                         if won then
                             Won
