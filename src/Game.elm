@@ -16,22 +16,15 @@ import Css.Transitions
 import Html.Attributes exposing (value)
 import Html.Styled exposing (..)
 import Html.Styled.Attributes exposing (css)
+import Html.Styled.Keyed as Keyed
 import Json.Decode as D exposing (Decoder)
 import Random
-import RandomCell exposing (Cell, randomCells)
-import Svg.Styled.Attributes exposing (k)
+import StyleVariables exposing (..)
+import Tile exposing (Tile, randomTiles)
 
 
 
 -- TYPES
-
-
-type alias Row =
-    List (Maybe Int)
-
-
-type alias GameGrid =
-    List Row
 
 
 type Direction
@@ -39,18 +32,23 @@ type Direction
     | Right
     | Up
     | Down
-    | Other
+
+
+type GameStatus
+    = Won
+    | Failed
+    | InProgress
 
 
 type Model
     = Internals
         { bestScore : Int
         , size : Int
-        , grid : GameGrid
+        , tiles : List Tile
         , score : Int
-        , won : Bool
-        , failed : Bool
+        , status : GameStatus
         , targetScore : Int
+        , nextTileKey : Int
         }
 
 
@@ -63,28 +61,18 @@ gridSize =
     4
 
 
-initGrid : Int -> GameGrid
-initGrid size =
-    List.repeat size Nothing
-        |> List.repeat size
-
-
 init : () -> ( Model, Cmd Msg )
 init () =
-    let
-        grid =
-            initGrid gridSize
-    in
     ( Internals
         { bestScore = 0
         , size = gridSize
-        , grid = grid
+        , tiles = []
         , score = 0
-        , won = False
-        , failed = False
+        , status = InProgress
         , targetScore = 2048
+        , nextTileKey = 0
         }
-    , Random.generate GotNewCells (randomCells 2 (availableCells grid))
+    , Random.generate GotNewTiles (randomTiles 2 (availableTiles gridSize []))
     )
 
 
@@ -102,46 +90,31 @@ subscriptions _ =
 
 
 type Msg
-    = KeyDown Direction
+    = KeyDown (Maybe Direction)
     | Reset
-    | GotNewCells (List Cell)
-    | Won
-    | Failed
+    | GotNewTiles (List Tile)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg (Internals model) =
     case msg of
-        KeyDown Other ->
+        KeyDown Nothing ->
             ( Internals model, Cmd.none )
 
-        KeyDown direction ->
+        KeyDown (Just direction) ->
             let
-                _ =
-                    Debug.log "direction" direction
-
                 wonOrFailed =
-                    model.won || model.failed
+                    model.status == Won || model.status == Failed
 
-                _ =
-                    Debug.log "won or failed" wonOrFailed
-
-                newGrid =
+                newTiles =
                     if wonOrFailed then
-                        model.grid
+                        model.tiles
 
                     else
-                        move direction model.grid
-
-                _ =
-                    Debug.log "new updated grid" newGrid
+                        move direction model.tiles
 
                 isNothingChanged =
-                    wonOrFailed
-                        || (model.grid
-                                |> List.concat
-                                |> (==) (List.concat newGrid)
-                           )
+                    wonOrFailed || model.tiles == newTiles
 
                 -- newGrid =
                 -- if won then nothing
@@ -153,45 +126,46 @@ update msg (Internals model) =
                         Internals model
 
                     else
-                        Internals { model | grid = newGrid }
+                        Internals { model | tiles = newTiles }
 
                 cmd =
                     if isNothingChanged then
                         Cmd.none
 
                     else
-                        Random.generate GotNewCells (randomCells 1 (availableCells newGrid))
+                        Random.generate GotNewTiles (randomTiles 1 (availableTiles model.size newTiles))
             in
             ( newModel, cmd )
 
         Reset ->
             init ()
 
-        GotNewCells cells ->
+        GotNewTiles newTiles ->
             let
-                grid =
-                    withCells cells model.grid
+                tiles =
+                    withTiles newTiles model.tiles
 
                 won =
-                    isWon model.targetScore grid
+                    isWon model.targetScore tiles
 
                 failed =
-                    not won && isFailed model.targetScore grid
+                    not won && isFailed model.targetScore model.size tiles
             in
             ( Internals
                 { model
-                    | grid = grid
-                    , won = won
-                    , failed = failed
+                    | tiles = tiles
+                    , status =
+                        if won then
+                            Won
+
+                        else if failed then
+                            Failed
+
+                        else
+                            InProgress
                 }
             , Cmd.none
             )
-
-        Won ->
-            ( Internals model, Cmd.none )
-
-        Failed ->
-            ( Internals model, Cmd.none )
 
 
 
@@ -204,7 +178,7 @@ view (Internals model) =
         []
         [ viewHeader model.score model.bestScore
         , viewGameContainer <| Internals model
-        , viewFooter model.grid
+        , viewFooter
         ]
 
 
@@ -235,7 +209,7 @@ viewGameContainer (Internals model) =
             ]
         ]
         [ viewGrid model.size
-        , viewTiles model.size model.grid
+        , Tile.view model.tiles
         ]
 
 
@@ -278,70 +252,11 @@ viewGridCell _ =
         []
 
 
-viewTiles : Int -> GameGrid -> Html Msg
-viewTiles size grid =
-    let
-        withIndexes rowI colI value =
-            { x = colI, y = rowI, value = value }
-
-        nonEmptyCells =
-            grid
-                |> List.indexedMap (\rowI -> List.indexedMap <| withIndexes rowI)
-                |> List.concat
-                |> List.filter (\{ value } -> value /= Nothing)
-    in
-    div
-        [ css
-            [ position absolute
-            , zIndex <| int 2
-            ]
-        ]
-        (List.map viewTile nonEmptyCells)
-
-
-viewTile : { x : Int, y : Int, value : Maybe Int } -> Html Msg
-viewTile cell =
-    let
-        wholeCellSize =
-            cellSize + cellMarginSize
-    in
-    div
-        [ css
-            [ position absolute
-            , width <| px cellSize
-            , height <| px cellSize
-            , lineHeight <| px cellSize
-            , transform <| translate2 (px (toFloat cell.x * wholeCellSize)) (px (toFloat cell.y * wholeCellSize))
-            , Css.Transitions.transition
-                [ Css.Transitions.transform3 100 0 Css.Transitions.easeInOut ]
-            ]
-        ]
-        [ div
-            [ css
-                [ borderRadius <| px 3
-                , backgroundColor <| hex "EEE4DA"
-                , textAlign center
-                , fontWeight bold
-                , fontSize <| px 55
-                , zIndex <| int 10
-                ]
-            ]
-            [ (text << Maybe.withDefault "" << Maybe.map String.fromInt) cell.value ]
-        ]
-
-
-viewFooter : GameGrid -> Html Msg
-viewFooter grid =
-    let
-        cells =
-            grid
-                |> List.concat
-                |> List.map
-                    (Maybe.withDefault "0" << Maybe.map String.fromInt)
-    in
+viewFooter : Html msg
+viewFooter =
     div
         []
-        [ text <| String.join ", " cells ]
+        [ text "Awesome game" ]
 
 
 
@@ -357,229 +272,185 @@ toDirection : String -> Msg
 toDirection string =
     case string of
         "ArrowLeft" ->
-            KeyDown Left
+            KeyDown (Just Left)
 
         "ArrowRight" ->
-            KeyDown Right
+            KeyDown (Just Right)
 
         "ArrowUp" ->
-            KeyDown Up
+            KeyDown (Just Up)
 
         "ArrowDown" ->
-            KeyDown Down
+            KeyDown (Just Down)
 
         _ ->
-            KeyDown Other
+            KeyDown Nothing
 
 
 
 -- GETTERS
 
 
-availableCells : GameGrid -> List ( Int, Int )
-availableCells grid =
+availableTiles : Int -> List Tile -> List ( Int, Int )
+availableTiles size tiles =
     let
-        withIndexes =
-            List.indexedMap Tuple.pair
-    in
-    grid
-        |> withIndexes
-        |> List.map (Tuple.mapSecond withIndexes)
-        |> List.concatMap (\( rowIndex, row ) -> List.map (\( colIndex, v ) -> ( rowIndex, colIndex, v )) row)
-        |> List.filter (\( _, _, v ) -> v == Nothing)
-        |> List.map (\( rowIndex, colIndex, _ ) -> ( rowIndex, colIndex ))
+        positions : List Int
+        positions =
+            List.range 0 (size - 1)
 
-
-isWon : Int -> GameGrid -> Bool
-isWon targetScore grid =
-    grid
-        |> List.concat
-        |> List.any (Maybe.withDefault False << Maybe.map ((==) targetScore))
-
-
-isFailed : Int -> GameGrid -> Bool
-isFailed targetScore grid =
-    let
-        checkRowForPossibleMove row =
-            row
-                |> List.foldr
-                    (\cell { res, prev } ->
-                        if res == True then
-                            { res = res, prev = prev }
-
-                        else
-                            { res = cell == prev, prev = cell }
-                    )
-                    { prev = Nothing, res = False }
-                |> .res
-
-        isFull =
-            grid
-                |> List.concat
-                |> List.filter ((==) Nothing)
+        isNotIncluded : ( Int, Int ) -> Bool
+        isNotIncluded ( row, column ) =
+            tiles
+                |> List.filter (\tile -> Tile.column tile == column && Tile.row tile == row)
                 |> List.length
                 |> (==) 0
-
-        isMovePossible =
-            List.foldr (\row accum -> accum || checkRowForPossibleMove row) False
     in
-    not (isWon targetScore grid)
-        && isFull
-        && (not <| isMovePossible grid)
-        && (not << isMovePossible << transpose) grid
+    cartesian positions positions
+        |> List.filter isNotIncluded
+
+
+cartesian : List a -> List b -> List ( a, b )
+cartesian xs ys =
+    List.concatMap
+        (\x -> List.map (\y -> ( x, y )) ys)
+        xs
+
+
+isWon : Int -> List Tile -> Bool
+isWon targetScore =
+    List.any ((==) targetScore << Tile.value)
+
+
+isFailed : Int -> Int -> List Tile -> Bool
+isFailed targetScore size tiles =
+    let
+        -- checkRowForPossibleMove row =
+        --     row
+        --         |> List.foldr
+        --             (\cell { res, prev } ->
+        --                 if res == True then
+        --                     { res = res, prev = prev }
+        --                 else
+        --                     { res = cell == prev, prev = cell }
+        --             )
+        --             { prev = Nothing, res = False }
+        --         |> .res
+        isFull =
+            List.length tiles == size
+
+        -- isMovePossible =
+        --     List.foldr (\row accum -> accum || checkRowForPossibleMove row) False
+    in
+    not (isWon targetScore tiles) && isFull
 
 
 
+-- && (not <| isMovePossible grid)
+-- && (not << isMovePossible << transpose) grid
 -- TRANSFORMERS
 
 
-withCells : List Cell -> GameGrid -> GameGrid
-withCells cells =
-    List.indexedMap
-        (\rowIndex ->
-            List.indexedMap
-                (\colIndex val ->
-                    case RandomCell.valueAt ( rowIndex, colIndex ) cells of
-                        Just newValue ->
-                            Just newValue
-
-                        Nothing ->
-                            val
-                )
-        )
+withTiles : List Tile -> List Tile -> List Tile
+withTiles =
+    (++)
 
 
-transpose : GameGrid -> GameGrid
-transpose grid =
-    case List.head grid of
-        Nothing ->
-            []
 
-        Just xs ->
-            List.indexedMap
-                (\index _ ->
-                    List.map
-                        (Maybe.withDefault Nothing
-                            << List.head
-                            << List.filter ((/=) Nothing)
-                            << List.indexedMap
-                                (\i cell ->
-                                    if i == index then
-                                        cell
-
-                                    else
-                                        Nothing
-                                )
-                        )
-                        grid
-                )
-                xs
-
-
-rotateClockwise : GameGrid -> GameGrid
-rotateClockwise =
-    List.map List.reverse << transpose
-
-
-rotateAntiClockwise : GameGrid -> GameGrid
-rotateAntiClockwise =
-    transpose << List.map List.reverse
+-- transpose : GameGrid -> GameGrid
+-- transpose grid =
+--     case List.head grid of
+--         Nothing ->
+--             []
+--         Just xs ->
+--             List.indexedMap
+--                 (\index _ ->
+--                     List.map
+--                         (Maybe.withDefault Nothing
+--                             << List.head
+--                             << List.filter ((/=) Nothing)
+--                             << List.indexedMap
+--                                 (\i cell ->
+--                                     if i == index then
+--                                         cell
+--                                     else
+--                                         Nothing
+--                                 )
+--                         )
+--                         grid
+--                 )
+--                 xs
+-- rotateClockwise : GameGrid -> GameGrid
+-- rotateClockwise =
+--     List.map List.reverse << transpose
+-- rotateAntiClockwise : GameGrid -> GameGrid
+-- rotateAntiClockwise =
+--     transpose << List.map List.reverse
 
 
-move : Direction -> GameGrid -> GameGrid
+move : Direction -> List Tile -> List Tile
 move direction =
     case direction of
         Right ->
             moveRight
 
         Left ->
-            rotateClockwise
-                << rotateClockwise
-                << moveRight
-                << rotateClockwise
-                << rotateClockwise
+            moveRight
 
+        -- rotateClockwise
+        --     << rotateClockwise
+        --     << moveRight
+        --     << rotateClockwise
+        --     << rotateClockwise
         Up ->
-            rotateAntiClockwise << moveRight << rotateClockwise
+            moveRight
 
+        -- rotateAntiClockwise << moveRight << rotateClockwise
         Down ->
-            rotateClockwise << moveRight << rotateAntiClockwise
-
-        Other ->
-            identity
+            moveRight
 
 
 
--- TODO add tests
+-- rotateClockwise << moveRight << rotateAntiClockwise
 
 
-moveRight : GameGrid -> GameGrid
-moveRight grid =
-    let
-        addEmptyCells =
-            addEmpties (List.length grid)
-    in
-    List.map
-        (addEmptyCells
-            << removeEmpties
-            << List.reverse
-            << List.foldr
-                (\cell accum ->
-                    if cell == last accum then
-                        removeLast accum ++ [ Maybe.map ((*) 2) cell, Nothing ]
-
-                    else
-                        accum ++ [ cell ]
-                )
-                []
-            << addEmptyCells
-            << removeEmpties
-        )
-        grid
-
-
-removeEmpties : Row -> Row
-removeEmpties =
-    List.filter ((/=) Nothing)
-
-
-addEmpties : Int -> Row -> Row
-addEmpties size row =
-    List.repeat (size - List.length row) Nothing ++ row
-
-
-removeLast : Row -> Row
-removeLast row =
-    row
-        |> List.indexedMap Tuple.pair
-        |> List.filter (\( index, value ) -> index /= List.length row - 1)
-        |> List.map Tuple.second
-
-
-last : Row -> Maybe Int
-last =
-    Maybe.withDefault Nothing << List.head << List.reverse
+moveRight : List Tile -> List Tile
+moveRight tiles =
+    -- let
+    --     addEmptyCells =
+    --         addEmpties (List.length grid)
+    -- in
+    tiles
 
 
 
--- STYLES
-
-
-gameBoardWidth : Float
-gameBoardWidth =
-    500
-
-
-cellSize : Float
-cellSize =
-    107
-
-
-cellMarginSize : Float
-cellMarginSize =
-    15
-
-
-occupiedCell : Float
-occupiedCell =
-    -1000
+-- List.map
+--     (addEmptyCells
+--         << removeEmpties
+--         << List.reverse
+--         << List.foldr
+--             (\cell accum ->
+--                 if cell == last accum then
+--                     removeLast accum ++ [ Maybe.map ((*) 2) cell, Nothing ]
+--                 else
+--                     accum ++ [ cell ]
+--             )
+--             []
+--         << addEmptyCells
+--         << removeEmpties
+--     )
+--     grid
+-- removeEmpties : Row -> Row
+-- removeEmpties =
+--     List.filter ((/=) Nothing)
+-- addEmpties : Int -> Row -> Row
+-- addEmpties size row =
+--     List.repeat (size - List.length row) Nothing ++ row
+-- removeLast : Row -> Row
+-- removeLast row =
+--     row
+--         |> List.indexedMap Tuple.pair
+--         |> List.filter (\( index, value ) -> index /= List.length row - 1)
+--         |> List.map Tuple.second
+-- last : Row -> Maybe Int
+-- last =
+--     Maybe.withDefault Nothing << List.head << List.reverse
