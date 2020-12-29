@@ -428,7 +428,9 @@ moveRight size tiles =
     in
     tiles
         |> shift
+        |> List.reverse
         |> mergeRight
+        |> List.reverse
         |> shift
 
 

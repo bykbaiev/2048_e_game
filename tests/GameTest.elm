@@ -53,6 +53,23 @@ suite =
                 move Right 3 tiles
                     |> listsEqualWithOrderIgnoring expected
             )
+        , test "move right (without rotations) 3 * 3 - (2 - 2 - 2)"
+            (\() ->
+                let
+                    tiles =
+                        [ Tile "key" { value = 2, row = 2, column = 0, merged = False }
+                        , Tile "key" { value = 2, row = 2, column = 1, merged = False }
+                        , Tile "key" { value = 2, row = 2, column = 2, merged = False }
+                        ]
+
+                    expected =
+                        [ Tile "key" { value = 2, row = 2, column = 1, merged = False }
+                        , Tile "key" { value = 4, row = 2, column = 2, merged = False }
+                        ]
+                in
+                move Right 3 tiles
+                    |> listsEqualWithOrderIgnoring expected
+            )
         , test "move right (without rotations) 4 * 4"
             (\() ->
                 let
