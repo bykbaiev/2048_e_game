@@ -100,9 +100,6 @@ update msg (Internals model) =
 
         KeyDown (Just direction) ->
             let
-                _ =
-                    Debug.log "KeyDown" direction
-
                 wonOrFailed =
                     model.status == Won || model.status == Failed
 
@@ -114,7 +111,7 @@ update msg (Internals model) =
                         move direction model.size model.tiles
 
                 isNothingChanged =
-                    wonOrFailed || model.tiles == newTiles
+                    wonOrFailed || List.all (\tile -> List.member tile model.tiles) newTiles
 
                 newModel =
                     if isNothingChanged then
@@ -208,7 +205,7 @@ viewGameContainer (Internals model) =
             ]
         ]
         [ viewGrid model.size
-        , Tile.view model.tiles
+        , Tile.view model.targetScore model.tiles
         ]
 
 

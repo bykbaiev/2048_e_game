@@ -211,31 +211,34 @@ randomTiles count availablePositions =
 -- VIEW
 
 
-view : List Tile -> Html msg
-view tiles =
+view : Int -> List Tile -> Html msg
+view targetScore tiles =
     Keyed.node "div"
         [ css
             [ position absolute
             , zIndex <| int 2
             ]
         ]
-        (List.map viewKeyedTile tiles)
+        (List.map (viewKeyedTile targetScore) tiles)
 
 
-viewKeyedTile : Tile -> ( String, Html msg )
-viewKeyedTile tile =
+viewKeyedTile : Int -> Tile -> ( String, Html msg )
+viewKeyedTile targetScore tile =
     let
         (Tile key _) =
             tile
     in
-    ( key, viewTile tile )
+    ( key, viewTile targetScore tile )
 
 
-viewTile : Tile -> Html msg
-viewTile (Tile _ internals) =
+viewTile : Int -> Tile -> Html msg
+viewTile targetScore (Tile _ internals) =
     let
         wholeCellSize =
             cellSize + cellMarginSize
+
+        tileBgColor =
+            mix <| (logBase 2 (toFloat internals.value) - 1.0) / (logBase 2 (toFloat targetScore) - 1.0) * 100
     in
     div
         [ css
@@ -254,7 +257,7 @@ viewTile (Tile _ internals) =
         [ div
             [ css
                 [ borderRadius <| px 3
-                , backgroundColor <| hex "EEE4DA"
+                , backgroundColor <| hex tileBgColor
                 , textAlign center
                 , fontWeight bold
                 , fontSize <| px 55
