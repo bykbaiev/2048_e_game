@@ -442,7 +442,7 @@ mergeRight tiles =
 
         x :: y :: xs ->
             if Tile.value x == Tile.value y && Tile.row x == Tile.row y then
-                Tile.withValue (Tile.value x * 2) x :: mergeRight xs
+                Tile.withValue (Tile.value x * 2) y :: mergeRight xs
 
             else
                 x :: mergeRight (y :: xs)
