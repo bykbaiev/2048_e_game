@@ -138,7 +138,7 @@ update msg (Internals model) =
                         Internals model
 
                     else
-                        Internals { model | tiles = newTiles }
+                        Internals { model | tiles = newTiles, score = score newTiles }
 
                 cmd =
                     if isNothingChanged then
@@ -170,6 +170,7 @@ update msg (Internals model) =
                     Internals
                         { model
                             | tiles = tiles
+                            , score = score tiles
                             , nextTileKey = nextTileKey
                             , status =
                                 if won then
@@ -202,10 +203,10 @@ view (Internals model) =
 
 
 viewHeader : Int -> Int -> Html Msg
-viewHeader score bestScore =
+viewHeader gScore bestScore =
     div []
         [ text "2048"
-        , text <| String.fromInt score
+        , text <| String.fromInt gScore
         , text <| String.fromInt bestScore
         ]
 
@@ -456,6 +457,14 @@ isFailed targetScore size tiles =
         && isFull
         && (not <| isMovePossible sortedByRows)
         && (not <| isMovePossible sortedByColumns)
+
+
+score : List Tile -> Int
+score tiles =
+    tiles
+        |> List.map Tile.value
+        |> List.maximum
+        |> Maybe.withDefault 0
 
 
 
