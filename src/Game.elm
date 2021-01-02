@@ -138,7 +138,19 @@ update msg (Internals model) =
                         Internals model
 
                     else
-                        Internals { model | tiles = newTiles, score = score newTiles }
+                        let
+                            newScore =
+                                score newTiles
+
+                            bestScore =
+                                max newScore model.bestScore
+                        in
+                        Internals
+                            { model
+                                | tiles = newTiles
+                                , score = newScore
+                                , bestScore = bestScore
+                            }
 
                 cmd =
                     if isNothingChanged then
@@ -166,11 +178,15 @@ update msg (Internals model) =
                 failed =
                     not won && isFailed model.targetScore model.size tiles
 
+                newScore =
+                    score tiles
+
                 newModel =
                     Internals
                         { model
                             | tiles = tiles
-                            , score = score tiles
+                            , score = newScore
+                            , bestScore = max newScore model.bestScore
                             , nextTileKey = nextTileKey
                             , status =
                                 if won then
