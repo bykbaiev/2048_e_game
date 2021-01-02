@@ -3,13 +3,14 @@ module Main exposing (main)
 import Browser
 import Game as G
 import Html.Styled exposing (toUnstyled)
+import Json.Decode exposing (Value)
 
 
 
 -- MAIN
 
 
-main : Program () G.Model G.Msg
+main : Program Value G.Model G.Msg
 main =
     Browser.element
         { init = G.init

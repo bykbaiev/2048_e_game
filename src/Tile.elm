@@ -1,6 +1,8 @@
 module Tile exposing
     ( Tile(..)
     , column
+    , decode
+    , encode
     , merged
     , moveRight
     , randomTiles
@@ -22,6 +24,9 @@ import Css.Transitions
 import Html.Styled exposing (Html, div, text)
 import Html.Styled.Attributes exposing (css)
 import Html.Styled.Keyed as Keyed
+import Json.Decode as D
+import Json.Decode.Pipeline as DP
+import Json.Encode as E
 import Random as R
 import StyleVariables exposing (..)
 
@@ -266,3 +271,33 @@ viewTile targetScore (Tile _ internals) =
             ]
             [ (text << String.fromInt) internals.value ]
         ]
+
+
+
+-- SERIALIZATION
+
+
+encode : Tile -> E.Value
+encode (Tile key internals) =
+    E.object
+        [ ( "key", E.string key )
+        , ( "row", E.int internals.row )
+        , ( "column", E.int internals.column )
+        , ( "merged", E.bool internals.merged )
+        , ( "value", E.int internals.value )
+        ]
+
+
+decode : D.Decoder Tile
+decode =
+    internalsDecoder
+        |> D.map2 Tile (D.field "key" D.string)
+
+
+internalsDecoder : D.Decoder Internals
+internalsDecoder =
+    D.succeed Internals
+        |> DP.required "row" D.int
+        |> DP.required "column" D.int
+        |> DP.required "merged" D.bool
+        |> DP.required "value" D.int

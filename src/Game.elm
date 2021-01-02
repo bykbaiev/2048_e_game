@@ -15,6 +15,9 @@ import Html.Attributes exposing (value)
 import Html.Styled exposing (..)
 import Html.Styled.Attributes exposing (css)
 import Json.Decode as D exposing (Decoder)
+import Json.Decode.Pipeline as DP
+import Json.Encode as E
+import Ports exposing (storeGameState)
 import Random
 import StyleVariables exposing (..)
 import Tile exposing (Tile, randomTiles)
@@ -38,15 +41,18 @@ type GameStatus
 
 
 type Model
-    = Internals
-        { bestScore : Int
-        , size : Int
-        , tiles : List Tile
-        , score : Int
-        , status : GameStatus
-        , targetScore : Int
-        , nextTileKey : Int
-        }
+    = Internals GameState
+
+
+type alias GameState =
+    { bestScore : Int
+    , size : Int
+    , tiles : List Tile
+    , score : Int
+    , status : GameStatus
+    , targetScore : Int
+    , nextTileKey : Int
+    }
 
 
 
@@ -58,8 +64,8 @@ gridSize =
     4
 
 
-init : () -> ( Model, Cmd Msg )
-init () =
+initialState : ( Model, Cmd Msg )
+initialState =
     ( Internals
         { bestScore = 0
         , size = gridSize
@@ -71,6 +77,20 @@ init () =
         }
     , Random.generate GotNewTiles (randomTiles 2 (availableTiles gridSize []))
     )
+
+
+init : D.Value -> ( Model, Cmd Msg )
+init previousGS =
+    let
+        state =
+            case D.decodeValue decode previousGS of
+                Ok gs ->
+                    ( Internals gs, Cmd.none )
+
+                Err _ ->
+                    initialState
+    in
+    state
 
 
 
@@ -130,7 +150,7 @@ update msg (Internals model) =
             ( newModel, cmd )
 
         Reset ->
-            init ()
+            initialState
 
         GotNewTiles newTiles ->
             let
@@ -145,22 +165,25 @@ update msg (Internals model) =
 
                 failed =
                     not won && isFailed model.targetScore model.size tiles
+
+                newModel =
+                    Internals
+                        { model
+                            | tiles = tiles
+                            , nextTileKey = nextTileKey
+                            , status =
+                                if won then
+                                    Won
+
+                                else if failed then
+                                    Failed
+
+                                else
+                                    InProgress
+                        }
             in
-            ( Internals
-                { model
-                    | tiles = tiles
-                    , nextTileKey = nextTileKey
-                    , status =
-                        if won then
-                            Won
-
-                        else if failed then
-                            Failed
-
-                        else
-                            InProgress
-                }
-            , Cmd.none
+            ( newModel
+            , storeGameState <| encode newModel
             )
 
 
@@ -281,6 +304,65 @@ toDirection string =
 
         _ ->
             KeyDown Nothing
+
+
+decode : D.Decoder GameState
+decode =
+    D.succeed GameState
+        |> DP.required "bestScore" D.int
+        |> DP.required "size" D.int
+        |> DP.required "tiles" (D.list Tile.decode)
+        |> DP.required "score" D.int
+        |> DP.required "status" statusDecoder
+        |> DP.required "targetScore" D.int
+        |> DP.required "nextTileKey" D.int
+
+
+encode : Model -> E.Value
+encode (Internals model) =
+    E.object
+        [ ( "bestScore", E.int model.bestScore )
+        , ( "size", E.int model.size )
+        , ( "tiles", E.list Tile.encode model.tiles )
+        , ( "nextTileKey", E.int model.nextTileKey )
+        , ( "score", E.int model.score )
+        , ( "status", statusEncoder model.status )
+        , ( "targetScore", E.int model.targetScore )
+        ]
+
+
+statusEncoder : GameStatus -> E.Value
+statusEncoder status =
+    E.string <|
+        case status of
+            Won ->
+                "Won"
+
+            Failed ->
+                "Failed"
+
+            InProgress ->
+                "InProgress"
+
+
+statusDecoder : D.Decoder GameStatus
+statusDecoder =
+    D.string
+        |> D.map
+            (\status ->
+                case status of
+                    "Won" ->
+                        Won
+
+                    "Failed" ->
+                        Failed
+
+                    "InProgress" ->
+                        InProgress
+
+                    _ ->
+                        InProgress
+            )
 
 
 
