@@ -9,9 +9,13 @@ module StyleVariables exposing
 import Hex
 
 
-gameBoardWidth : Float
-gameBoardWidth =
-    500
+gameBoardWidth : Int -> Float
+gameBoardWidth size =
+    let
+        fSize =
+            toFloat size
+    in
+    cellSize * fSize + (fSize + 1) * cellMarginSize
 
 
 cellSize : Float

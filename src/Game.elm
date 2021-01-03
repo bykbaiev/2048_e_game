@@ -3,6 +3,7 @@ module Game exposing
     , Model
     , Msg
     , init
+    , isFailed
     , move
     , subscriptions
     , update
@@ -61,7 +62,7 @@ type alias GameState =
 
 gridSize : Int
 gridSize =
-    4
+    3
 
 
 initialState : ( Model, Cmd Msg )
@@ -229,6 +230,10 @@ viewHeader gScore bestScore =
 
 viewGameContainer : Model -> Html Msg
 viewGameContainer (Internals model) =
+    let
+        boardSize =
+            gameBoardWidth model.size
+    in
     div
         [ css
             [ position relative
@@ -237,8 +242,8 @@ viewGameContainer (Internals model) =
             , marginTop <| px 40
             , backgroundColor <| hex "#BBADA0"
             , borderRadius <| px 6
-            , width <| px gameBoardWidth
-            , height <| px gameBoardWidth
+            , width <| px boardSize
+            , height <| px boardSize
             , boxSizing borderBox
             , color <| hex "776e65"
             , fontFamilies [ "Clear Sans", "Helvetica Neue", "Arial", "sans-serif" ]
@@ -436,7 +441,7 @@ isFailed targetScore size tiles =
 
                 x :: xs ->
                     xs
-                        |> List.foldr
+                        |> List.foldl
                             (\tile { prev, sameValues } ->
                                 let
                                     value =
